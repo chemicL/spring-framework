@@ -33,6 +33,7 @@ import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.lang.Nullable;
+import org.springframework.scheduling.annotation.Blocking;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.reactive.BindingContext;
 import org.springframework.web.reactive.HandlerResult;
@@ -106,6 +107,14 @@ public class InvocableHandlerMethodTests {
 		Mono<HandlerResult> mono = invoke(new TestController(), method, "value1");
 
 		assertHandlerResultValue(mono, "success:value1");
+	}
+
+	@Test
+	public void resolveBlockingArg() {
+		Method method = ResolvableMethod.on(TestController.class).mockCall(o -> o.blockingArg(null)).method();
+		HandlerResult value = invokeForResult(new TestController(), method, "value1");
+
+		assertThat(((Mono) value.getReturnValue()).block()).isEqualTo("blocking:value1");
 	}
 
 	@Test
@@ -250,6 +259,11 @@ public class InvocableHandlerMethodTests {
 
 		String singleArg(String q) {
 			return "success:" + q;
+		}
+
+		@Blocking
+		String blockingArg(String q) {
+			return "blocking:" + q;
 		}
 
 		String noArgs() {

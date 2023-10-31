@@ -32,6 +32,7 @@ import kotlin.reflect.KParameter;
 import kotlin.reflect.jvm.KCallablesJvm;
 import kotlin.reflect.jvm.ReflectJvmMapping;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import org.springframework.core.CoroutinesUtils;
 import org.springframework.core.DefaultParameterNameDiscoverer;
@@ -44,6 +45,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
+import org.springframework.scheduling.annotation.Blocking;
 import org.springframework.util.ObjectUtils;
 import org.springframework.validation.method.MethodValidator;
 import org.springframework.web.method.HandlerMethod;
@@ -171,7 +173,13 @@ public class InvocableHandlerMethod extends HandlerMethod {
 					value = KotlinDelegate.invokeFunction(method, getBean(), args, isSuspendingFunction, exchange);
 				}
 				else {
-					value = method.invoke(getBean(), args);
+					if (isBlocking(method)) {
+						value =
+								Mono.fromCallable(() -> method.invoke(getBean(), args)).subscribeOn(
+										Schedulers.boundedElastic());
+					} else {
+						value = method.invoke(getBean(), args);
+					}
 				}
 			}
 			catch (IllegalArgumentException ex) {
@@ -208,6 +216,10 @@ public class InvocableHandlerMethod extends HandlerMethod {
 			HandlerResult result = new HandlerResult(this, value, returnType, bindingContext);
 			return Mono.just(result);
 		});
+	}
+
+	private boolean isBlocking(Method method) {
+		return method.isAnnotationPresent(Blocking.class);
 	}
 
 	private Mono<Object[]> getMethodArgumentValues(
